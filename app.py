@@ -8,7 +8,6 @@ from difflib import SequenceMatcher
 from datetime import datetime
 import pandas as pd
 
-# ---------------- PAGE CONFIG & DARK UI ----------------
 st.set_page_config(page_title="VeriNews 2.0 - Live Fact Checker", page_icon="🛡️", layout="centered")
 
 st.markdown("""
@@ -27,7 +26,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- TRUSTED SOURCES LIST ----------------
 TRUSTED_DOMAINS = [
     "ndtv", "timesofindia", "indiatimes", "hindustantimes", "indianexpress",
     "thehindu", "bbc", "reuters", "apnews", "pib.gov.in", "livemint",
@@ -40,7 +38,6 @@ CLICKBAIT_WORDS = [
     "secret exposed", "whatsapp", "alert!!", "must watch"
 ]
 
-# ---------------- HELPER FUNCTIONS ----------------
 def extract_text_from_url(url):
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -66,7 +63,6 @@ def search_google_news(query, lang="en"):
         rss_url = f"https://google.com{encoded_query}&hl=hi&gl=IN&ceid=IN:hi"
     else:
         rss_url = f"https://google.com{encoded_query}&hl=en-IN&gl=IN&ceid=IN:en"
-    
     articles = []
     try:
         res = requests.get(rss_url, timeout=10)
@@ -99,13 +95,12 @@ def calculate_similarity(a, b):
     seq_ratio = SequenceMatcher(None, a_clean, b_clean).ratio()
     return max(overlap, seq_ratio)
 
-# ---------------- HEADER & CONTROLS ----------------
 st.title("🛡️ VeriNews 2.0 (Pro)")
 st.caption("Real-Time Live Web Fact-Checker • Text, URL, YouTube & Hindi/English Support")
 
-col1, col2 = st.columns([3, 1])
+col1, col2 = st.columns([2, 1])
 with col1:
-    lang_choice = st.selectbox("🌐 Search Language / भाषा चुनें:", ["English", "Hindi / Hinglish"], label_visibility="collapsed")
+    lang_choice = st.selectbox("Search Language:", ["English", "Hindi / Hinglish"], label_visibility="collapsed")
 with col2:
     if st.button("🔄 Refresh Source"):
         st.cache_data.clear()
@@ -124,8 +119,6 @@ if st.button("🔍 Analyze & Verify Live"):
         with st.spinner("Checking live trusted news sources across the web..."):
             raw_text = user_input.strip()
             input_type = "Text / Headline"
-            
-            # 1. Check if Input is a URL
             if raw_text.startswith("http://") or raw_text.startswith("https://"):
                 extracted, input_type = extract_text_from_url(raw_text)
                 query_text = extracted
@@ -133,13 +126,11 @@ if st.button("🔍 Analyze & Verify Live"):
             else:
                 query_text = raw_text
 
-            # 2. Search Google News (English + Hindi if needed)
             lang_code = "hi" if "Hindi" in lang_choice else "en"
             matches = search_google_news(query_text, lang=lang_code)
             if not matches and lang_code == "hi":
                 matches = search_google_news(query_text, lang="en")
 
-            # 3. Analyze Matches & Credibility
             trusted_hits = 0
             best_score = 0.0
             for art in matches:
@@ -150,10 +141,8 @@ if st.button("🔍 Analyze & Verify Live"):
                 if any(td in src_lower for td in TRUSTED_DOMAINS) and sim >= 0.30:
                     trusted_hits += 1
 
-            # Check Clickbait / Sensational Patterns
             clickbait_hits = sum(1 for w in CLICKBAIT_WORDS if w in query_text.lower())
 
-            # Final Hybrid Probability Calculation
             real_prob = 20.0
             if trusted_hits >= 2 and best_score >= 0.35:
                 real_prob = min(96.5, 70.0 + (trusted_hits * 6.0) + (best_score * 15.0))
@@ -170,28 +159,26 @@ if st.button("🔍 Analyze & Verify Live"):
             fake_prob = round(100.0 - real_prob, 1)
             real_prob = round(real_prob, 1)
 
-            # ---------------- DISPLAY VERIFICATION RESULT ----------------
             st.subheader("Verification Result")
 
             if real_prob >= 62.0:
-                st.markdown(f'<div class="real-box">✅ VERIFIED REAL NEWS (Confirmed by Live Sources)</div>', unsafe_allow_html=True)
+                st.markdown('<div class="real-box">✅ VERIFIED REAL NEWS (Confirmed by Live Sources)</div>', unsafe_allow_html=True)
                 confidence = real_prob
                 explanation = f"Matched with {len(matches)} live news reports ({trusted_hits} from major trusted outlets)."
             elif 45.0 <= real_prob < 62.0:
-                st.markdown(f'<div class="warn-box">⚠️ UNCERTAIN / 50-50 PARTIAL MATCH</div>', unsafe_allow_html=True)
+                st.markdown('<div class="warn-box">⚠️ UNCERTAIN / 50-50 PARTIAL MATCH</div>', unsafe_allow_html=True)
                 confidence = real_prob
                 explanation = "Partial keyword overlap found on the web, but exact claim lacks strong confirmation."
             else:
-                st.markdown(f'<div class="fake-box">🚨 FAKE / UNVERIFIED NEWS DETECTED</div>', unsafe_allow_html=True)
+                st.markdown('<div class="fake-box">🚨 FAKE / UNVERIFIED NEWS DETECTED</div>', unsafe_allow_html=True)
                 confidence = fake_prob
                 explanation = "No matching reports found in trusted news outlets. High likelihood of misinformation or fabrication."
 
-            st.markdown(f"**AI & Live Fact-Check Confidence Score**")
+            st.markdown("**AI & Live Fact-Check Confidence Score**")
             st.markdown(f"# {confidence}%")
             st.progress(int(confidence))
             st.caption(f"💡 **Analysis Reason:** {explanation} | Last Checked: {datetime.now().strftime('%H:%M:%S')}")
 
-            # Probability Breakdown Chart
             st.subheader("Probability Breakdown:")
             chart_df = pd.DataFrame({
                 "Category": ["Fake Probability (%)", "Real Probability (%)"],
@@ -199,7 +186,6 @@ if st.button("🔍 Analyze & Verify Live"):
             }).set_index("Category")
             st.bar_chart(chart_df)
 
-            # ---------------- EVIDENCE & MATCHED SOURCES ----------------
             st.subheader("📰 Live Web Evidence & Matched Sources")
             if matches:
                 for m in matches[:5]:
@@ -209,4 +195,6 @@ if st.button("🔍 Analyze & Verify Live"):
                         <a href="{m['link']}" target="_blank" style="color:#58a6ff; text-decoration:none;">{m['title']} ↗</a>
                     </div>
                     """, unsafe_allow_html=True)
-else:
+            else:
+                st.error("❌ No credible news sources found reporting this claim on Google News.")
+
