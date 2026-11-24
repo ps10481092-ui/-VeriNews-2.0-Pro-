@@ -26,14 +26,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 DIRECT_RSS_FEEDS = [
-    ("Times of India", "https://indiatimes.com"),
-    ("Times of India India", "https://indiatimes.com"),
-    ("NDTV India", "https://feedburner.com"),
-    ("NDTV Top", "https://feedburner.com"),
-    ("The Hindu", "https://thehindu.com"),
-    ("Hindustan Times", "https://hindustantimes.com"),
-    ("Indian Express", "https://indianexpress.com"),
-    ("BBC World", "http://bbci.co.uk")
+    ("Times of India", "https://timesofindia.indiatimes.com/rssfeedstopstories.cms"),
+    ("Times of India India", "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms"),
+    ("NDTV Top", "https://feeds.feedburner.com/ndtvnews-top-stories"),
+    ("The Hindu", "https://www.thehindu.com/news/national/feeder/default.rss"),
+    ("Hindustan Times", "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml"),
+    ("Indian Express", "https://indianexpress.com/section/india/feed/"),
+    ("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml")
 ]
 
 TRUSTED_DOMAINS = [
@@ -97,7 +96,7 @@ def search_google_fallback(query):
     clean = re.sub(r'[^\w\s]', ' ', query.lower())
     words = [w for w in clean.split() if len(w) > 2 and w not in STOPWORDS]
     kw = " ".join(words[:6]) if words else query
-    rss_url = f"https://google.com{urllib.parse.quote(kw)}&hl=en-IN&gl=IN&ceid=IN:en"
+    rss_url = f"https://news.google.com/rss/search?q={urllib.parse.quote(kw)}&hl=en-IN&gl=IN&ceid=IN:en"
     articles = []
     try:
         res = requests.get(rss_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
@@ -157,7 +156,8 @@ def extract_text_from_url(url):
         pass
     slug = url.split("/")[-1].replace("-", " ").replace(".cms", "").replace(".html", "")
     return (slug if len(slug) > 6 else url), "Web URL", domain_trusted
-    st.title("🛡️ VeriNews 2.0 (Pro)")
+
+st.title("🛡️ VeriNews 2.0 (Pro)")
 st.caption("Real-Time Live Web Fact-Checker • Direct Trusted Feeds, Regional Filter & Explanations")
 
 col1, col2, col3 = st.columns([1.1, 1.2, 1.1])
@@ -172,7 +172,7 @@ with col3:
 if st.button("⚡ Load Today's Live Breaking Headline"):
     live_list = fetch_all_live_feeds()
     if live_list:
-        st.session_state.news_input_box = live_list["title"]
+        st.session_state.news_input_box = live_list[0]["title"]
         st.rerun()
 
 user_input = st.text_area(
@@ -199,7 +199,7 @@ if st.button("🔍 Analyze & Verify Live"):
 
             search_query = query_text
             if region_choice != "All India (Default)":
-                state_tag = region_choice.split("/").strip()
+                state_tag = region_choice.split("/")[0].strip()
                 search_query = f"{query_text} {state_tag}"
                 st.caption(f"📍 **Regional Verification Active:** Filtering for **{region_choice}** context.")
 
@@ -207,7 +207,7 @@ if st.button("🔍 Analyze & Verify Live"):
             if not scored_matches and region_choice != "All India (Default)":
                 scored_matches = search_live_news(query_text)
 
-            best_score = scored_matches["score"] if scored_matches else 0.0
+            best_score = scored_matches[0]["score"] if scored_matches else 0.0
             matched_articles = [item["article"] for item in scored_matches]
             matched_sources = list(dict.fromkeys([a["source"] for a in matched_articles]))
 
@@ -221,7 +221,7 @@ if st.button("🔍 Analyze & Verify Live"):
             elif len(matched_articles) == 1 or best_score >= 0.28:
                 real_prob = 52.5
             else:
-                real_prob = 17.5
+                real_prob = 50.0
 
             fake_prob = round(100.0 - real_prob, 1)
             real_prob = round(real_prob, 1)
@@ -233,11 +233,11 @@ if st.button("🔍 Analyze & Verify Live"):
                 confidence = real_prob
                 status_type = "REAL"
             elif 45.0 <= real_prob < 62.0:
-                st.markdown('<div class="warn-box">⚠️ UNCERTAIN / 50-50 PARTIAL MATCH</div>', unsafe_allow_html=True)
+                st.markdown('<div class="warn-box">⚠️ UNCERTAIN / UNVERIFIED IN LIVE FEEDS</div>', unsafe_allow_html=True)
                 confidence = real_prob
                 status_type = "UNCERTAIN"
             else:
-                st.markdown('<div class="fake-box">🚨 FAKE / UNVERIFIED NEWS DETECTED</div>', unsafe_allow_html=True)
+                st.markdown('<div class="fake-box">🚨 FAKE / CLICKBAIT NEWS DETECTED</div>', unsafe_allow_html=True)
                 confidence = fake_prob
                 status_type = "FAKE"
 
@@ -256,11 +256,11 @@ if st.button("🔍 Analyze & Verify Live"):
                 )
             elif status_type == "UNCERTAIN":
                 st.warning(
-                    "⚠️ **Partial Topic Overlap:** Related keywords appeared in live news, but full multi-source confirmation is limited.\n\n"
-                    "💡 **Recommendation:** Cross-check on the official portals below before sharing."
+                    "⚠️ **Insufficient Live Feed Confirmation:** No strong matching report appeared in current live RSS feeds.\n\n"
+                    "💡 **Recommendation:** Cross-check on official portals or search engines before sharing."
                 )
             else:
-                cb_text = f"Detected suspicious/clickbait phrases: {', '.join(found_clickbaits)}." if found_clickbaits else "No matching report found in live TOI, NDTV, The Hindu, HT, or BBC feeds."
+                cb_text = f"Detected suspicious/clickbait phrases: {', '.join(found_clickbaits)}." if found_clickbaits else "Suspicious claim pattern with no trusted coverage."
                 st.error(
                     "❌ **Zero Trusted Media Coverage:** None of the major live news feeds confirm this claim.\n\n"
                     f"❌ **Misinformation Pattern:** {cb_text}\n\n"
@@ -279,14 +279,14 @@ if st.button("🔍 Analyze & Verify Live"):
                 for m in matched_articles[:5]:
                     st.markdown(f"**{m['source']}** • *{m['date'][:16]}* — [{m['title']}]({m['link']})")
             else:
-                st.error("❌ No credible news sources found reporting this claim in live feeds.")
+                st.warning("⚠️ No matching news articles found in live feeds right now.")
 
             st.subheader("🔎 Doubt the Result? Cross-Check Yourself")
             st.markdown(
                 "Verify manually on these official & IFCN-certified fact-checking portals:\n"
                 "- 🇮🇳 **[PIB Fact Check](https://pib.gov.in)** — Official Government of India Fact-Checking Unit\n"
-                "- 🌐 **[Google Fact Check Explorer](https://google.com)** — Global Fact-Checked Claims Database\n"
-                "- ✅ **[Vishvas News](https://vishvasnews.com)** — IFCN Certified Hindi & English Fact-Checker\n"
-                "- ✅ **[BOOM Live](https://boomlive.in)** — Independent Journalism & Fact-Checking Portal\n"
-                "- ✅ **[Alt News](https://altnews.in)** — Social Media & Viral Misinformation Verification"
-            )
+                "- 🌐 **[Google Fact Check Explorer](https://toolbox.google.com/factcheck/explorer)** — Global Fact-Checked Claims Database\n"
+                "- ✅ **[Vishvas News](https://www.vishvasnews.com)** — IFCN Certified Hindi & English Fact-Checker\n"
+                "- ✅ **[BOOM Live](https://www.boomlive.in)** — Independent Journalism & Fact-Checking Portal\n"
+                "- ✅ **[Alt News](https://www.altnews.in)** — Social Media & Viral Misinformation Verification"
+        )
