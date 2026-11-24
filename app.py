@@ -26,11 +26,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 DIRECT_RSS_FEEDS = [
-    ("Times of India Top", "https://indiatimes.com"),
+    ("Times of India", "https://indiatimes.com"),
     ("Times of India India", "https://indiatimes.com"),
     ("NDTV India", "https://feedburner.com"),
-    ("NDTV Top Stories", "https://feedburner.com"),
-    ("The Hindu National", "https://thehindu.com"),
+    ("NDTV Top", "https://feedburner.com"),
+    ("The Hindu", "https://thehindu.com"),
     ("Hindustan Times", "https://hindustantimes.com"),
     ("Indian Express", "https://indianexpress.com"),
     ("BBC World", "http://bbci.co.uk")
@@ -92,140 +92,43 @@ def fetch_all_live_feeds():
             continue
     return all_articles
 
-def search_live_news(query):
-    live_pool = fetch_all_live_feeds()
-    q_clean = re.sub(r'[^\w\s]', ' ', query.lower())
-    q_words = {w for w in q_clean.split() if len(w) > 2 and w not in STOPWORDS}
-    scored = []
-    for art in live_pool:
-        t_clean = re.sub(r'[^\w\s]', ' ', art["title"].lower())
-        t_words = {w for w in t_clean.split() if len(w) > 2 and w not in STOPWORDS}
-        if not q_words or not t_words:
-            continue
-        common = q_words.intersection(t_words)
-        ratio = len(common) / min(len(q_words), 4)
-        seq = SequenceMatcher(None, " ".join(sorted(q_words)), " ".join(sorted(t_words))).ratio()
-        score = max(ratio, seq)
-        if score >= 0.25 or len(common) >= 2:
-            scored.append((score, art))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return scored
-
-def extract_text_from_url(url):
-    domain_trusted = any(td in url.lower() for td in TRUSTED_DOMAINS)
+@st.cache_data(ttl=300, show_spinner=False)
+def search_google_fallback(query):
+    clean = re.sub(r'[^\w\s]', ' ', query.lower())
+    words = [w for w in clean.split() if len(w) > 2 and w not in STOPWORDS]
+    kw = " ".join(words[:6]) if words else query
+    rss_url = f"https://google.com{urllib.parse.quote(kw)}&hl=en-IN&gl=IN&ceid=IN:en"
+    articles = []
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        res = requests.get(url, headers=headers, timeout=6)
-        soup = BeautifulSoup(res.text, "html.parser")
-        title = soup.title.string.strip() if soup.title and soup.title.string else ""
-        h1 = soup.find("h1")
-        headline = h1.get_text().strip() if h1 else title
-        if headline and "youtube" not in headline.lower():
-            return headline, "Web Link", domain_trusted
+        res = requests.get(rss_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
+        if res.status_code == 200:
+            root = ET.fromstring(res.content)
+            for item in root.findall(".//item")[:10]:
+                t = item.find("title")
+                l = item.find("link")
+                d = item.find("pubDate")
+                s = item.find("source")
+                if t is not None and t.text:
+                    articles.append({
+                        "title": t.text.strip(),
+                        "link": l.text.strip() if l is not None and l.text else "",
+                        "source": s.text.strip() if s is not None and s.text else "Google News",
+                        "date": d.text.strip() if d is not None and d.text else "Today"
+                    })
     except Exception:
         pass
-    slug = url.split("/")[-1].replace("-", " ").replace(".cms", "").replace(".html", "")
-    return (slug if len(slug) > 6 else url), "Web URL", domain_trusted
-    import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-import urllib.parse
-import xml.etree.ElementTree as ET
-import re
-from difflib import SequenceMatcher
-from datetime import datetime
-import pandas as pd
-
-st.set_page_config(page_title="VeriNews 2.0 - Live Fact Checker", page_icon="🛡️", layout="centered")
-
-st.markdown("""
-<style>
-    .stApp { background-color: #0e1117; color: #ffffff; }
-    .stTextArea textarea { background-color: #262730 !important; color: #ffffff !important; border-radius: 8px; }
-    div.stButton > button:first-child {
-        background-color: #c8333a; color: white; width: 100%; border-radius: 8px;
-        height: 46px; font-weight: bold; border: none; font-size: 16px;
-    }
-    div.stButton > button:first-child:hover { background-color: #a8282e; }
-    .real-box { background-color: #133b27; border-left: 5px solid #28a745; padding: 15px; border-radius: 8px; color: #d4edda; font-weight: bold; font-size: 18px; }
-    .fake-box { background-color: #3e191b; border-left: 5px solid #dc3545; padding: 15px; border-radius: 8px; color: #f8d7da; font-weight: bold; font-size: 18px; }
-    .warn-box { background-color: #3d3214; border-left: 5px solid #ffc107; padding: 15px; border-radius: 8px; color: #fff3cd; font-weight: bold; font-size: 18px; }
-</style>
-""", unsafe_allow_html=True)
-
-DIRECT_RSS_FEEDS = [
-    ("Times of India Top", "https://indiatimes.com"),
-    ("Times of India India", "https://indiatimes.com"),
-    ("NDTV India", "https://feedburner.com"),
-    ("NDTV Top Stories", "https://feedburner.com"),
-    ("The Hindu National", "https://thehindu.com"),
-    ("Hindustan Times", "https://hindustantimes.com"),
-    ("Indian Express", "https://indianexpress.com"),
-    ("BBC World", "http://bbci.co.uk")
-]
-
-TRUSTED_DOMAINS = [
-    "ndtv", "timesofindia", "indiatimes", "hindustantimes", "indianexpress",
-    "thehindu", "bbc", "reuters", "apnews", "pib", "livemint", "economictimes",
-    "news18", "aajtak", "indiatoday", "news24", "abplive", "zeenews", "ani", "pti"
-]
-
-STOPWORDS = {
-    "the", "is", "in", "at", "of", "on", "and", "a", "to", "for", "with", "from",
-    "by", "as", "an", "be", "this", "that", "it", "are", "was", "were", "has", "have",
-    "news", "breaking", "latest", "today", "says", "said", "over", "live", "updates", "after"
-}
-
-CLICKBAIT_WORDS = [
-    "forward this", "100% true", "miracle", "nasa confirms", "15 days of complete darkness",
-    "free laptop", "free recharge", "share immediately", "shocking truth",
-    "secret exposed", "whatsapp", "alert!!", "must watch", "note band", "10 days holiday"
-]
-
-STATE_OPTIONS = [
-    "All India (Default)", "Haryana / Faridabad", "Delhi NCR", "Uttar Pradesh",
-    "Bihar", "Rajasthan", "Maharashtra", "Punjab", "Madhya Pradesh"
-]
-
-if "news_input_box" not in st.session_state:
-    st.session_state.news_input_box = ""
-
-def clear_and_refresh():
-    st.session_state.news_input_box = ""
-    st.cache_data.clear()
-
-def find_url_in_text(text):
-    match = re.search(r'(https?://[^\s]+)', text)
-    return match.group(1) if match else None
-
-@st.cache_data(ttl=300, show_spinner=False)
-def fetch_all_live_feeds():
-    all_articles = []
-    headers = {"User-Agent": "Mozilla/5.0"}
-    for source_name, url in DIRECT_RSS_FEEDS:
-        try:
-            res = requests.get(url, headers=headers, timeout=6)
-            if res.status_code == 200:
-                root = ET.fromstring(res.content)
-                for item in root.findall(".//item")[:20]:
-                    title_el = item.find("title")
-                    link_el = item.find("link")
-                    date_el = item.find("pubDate")
-                    title = title_el.text.strip() if title_el is not None and title_el.text else ""
-                    link = link_el.text.strip() if link_el is not None and link_el.text else ""
-                    pub_date = date_el.text.strip() if date_el is not None and date_el.text else "Today"
-                    if title:
-                        all_articles.append({"title": title, "link": link, "source": source_name, "date": pub_date})
-        except Exception:
-            continue
-    return all_articles
+    return articles
 
 def search_live_news(query):
-    live_pool = fetch_all_live_feeds()
+    live_pool = fetch_all_live_feeds() + search_google_fallback(query)
     q_clean = re.sub(r'[^\w\s]', ' ', query.lower())
     q_words = {w for w in q_clean.split() if len(w) > 2 and w not in STOPWORDS}
     scored = []
+    seen = set()
     for art in live_pool:
+        if art["title"] in seen:
+            continue
+        seen.add(art["title"])
         t_clean = re.sub(r'[^\w\s]', ' ', art["title"].lower())
         t_words = {w for w in t_clean.split() if len(w) > 2 and w not in STOPWORDS}
         if not q_words or not t_words:
@@ -234,9 +137,9 @@ def search_live_news(query):
         ratio = len(common) / min(len(q_words), 4)
         seq = SequenceMatcher(None, " ".join(sorted(q_words)), " ".join(sorted(t_words))).ratio()
         score = max(ratio, seq)
-        if score >= 0.25 or len(common) >= 2:
-            scored.append((score, art))
-    scored.sort(key=lambda x: x[0], reverse=True)
+        if score >= 0.28 or len(common) >= 2:
+            scored.append({"score": score, "article": art})
+    scored.sort(key=lambda item: item["score"], reverse=True)
     return scored
 
 def extract_text_from_url(url):
@@ -269,7 +172,7 @@ with col3:
 if st.button("⚡ Load Today's Live Breaking Headline"):
     live_list = fetch_all_live_feeds()
     if live_list:
-        st.session_state.news_input_box = live_list[0]["title"]
+        st.session_state.news_input_box = live_list["title"]
         st.rerun()
 
 user_input = st.text_area(
@@ -283,7 +186,7 @@ if st.button("🔍 Analyze & Verify Live"):
     if not user_input.strip():
         st.warning("⚠️ Please enter some news text, headline, or URL to verify.")
     else:
-        with st.spinner("Cross-checking against 150+ live Times of India, NDTV, The Hindu, HT & BBC articles..."):
+        with st.spinner("Cross-checking against live trusted news sources across the web..."):
             raw_text = user_input.strip()
             detected_url = find_url_in_text(raw_text)
             domain_verified = False
@@ -296,7 +199,7 @@ if st.button("🔍 Analyze & Verify Live"):
 
             search_query = query_text
             if region_choice != "All India (Default)":
-                state_tag = region_choice.split("/")[0].strip()
+                state_tag = region_choice.split("/").strip()
                 search_query = f"{query_text} {state_tag}"
                 st.caption(f"📍 **Regional Verification Active:** Filtering for **{region_choice}** context.")
 
@@ -304,8 +207,8 @@ if st.button("🔍 Analyze & Verify Live"):
             if not scored_matches and region_choice != "All India (Default)":
                 scored_matches = search_live_news(query_text)
 
-            best_score = scored_matches[0][0] if scored_matches else 0.0
-            matched_articles = [item[1] for item in scored_matches]
+            best_score = scored_matches["score"] if scored_matches else 0.0
+            matched_articles = [item["article"] for item in scored_matches]
             matched_sources = list(dict.fromkeys([a["source"] for a in matched_articles]))
 
             found_clickbaits = [w for w in CLICKBAIT_WORDS if w in query_text.lower()]
@@ -386,5 +289,4 @@ if st.button("🔍 Analyze & Verify Live"):
                 "- ✅ **[Vishvas News](https://vishvasnews.com)** — IFCN Certified Hindi & English Fact-Checker\n"
                 "- ✅ **[BOOM Live](https://boomlive.in)** — Independent Journalism & Fact-Checking Portal\n"
                 "- ✅ **[Alt News](https://altnews.in)** — Social Media & Viral Misinformation Verification"
-                          )
-            
+            )
