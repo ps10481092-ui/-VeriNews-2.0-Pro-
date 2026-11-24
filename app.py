@@ -130,7 +130,7 @@ def calculate_similarity(query_text, article_title):
     overlap = len(matched) / min(len(q_words), 5)
     seq_ratio = SequenceMatcher(None, " ".join(q_words), " ".join(t_words)).ratio()
     return max(overlap, seq_ratio)
-      st.title("🛡️ VeriNews 2.0 (Pro)")
+    st.title("🛡️ VeriNews 2.0 (Pro)")
 st.caption("Real-Time Live Web Fact-Checker • Text, URL, YouTube, Regional Filter & Explanations")
 
 col1, col2, col3 = st.columns([1.1, 1.2, 1.1])
