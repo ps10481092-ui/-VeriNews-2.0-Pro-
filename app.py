@@ -137,8 +137,7 @@ def search_live_news(query):
         ratio = len(common) / min(len(q_words), 4)
         seq = SequenceMatcher(None, " ".join(sorted(q_words)), " ".join(sorted(t_words))).ratio()
         score = max(ratio, seq)
-                if score >= 0.45 or len(common) >= 3:
-            scored.append({"score": score, "article": art})
+        if score >= 0.45 or len(common) >= 3:
             scored.append({"score": score, "article": art})
     scored.sort(key=lambda item: item["score"], reverse=True)
     return scored
