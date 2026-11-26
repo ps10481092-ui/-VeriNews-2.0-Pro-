@@ -49,8 +49,9 @@ STOPWORDS = {
 
 CLICKBAIT_WORDS = [
     "forward this", "100% true", "miracle", "nasa confirms", "15 days of complete darkness",
-    "free laptop", "free recharge", "share immediately", "shocking truth",
-    "secret exposed", "whatsapp", "alert!!", "must watch", "note band", "10 days holiday"
+    "free laptop", "free recharge", "share immediately", "shocking truth", "shocking news",
+    "secret exposed", "secretly confirm", "cures every", "without any medicine", "overnight",
+    "whatsapp", "alert!!", "must watch", "note band", "10 days holiday", "breaking news"
 ]
 
 STATE_OPTIONS = [
@@ -136,7 +137,8 @@ def search_live_news(query):
         ratio = len(common) / min(len(q_words), 4)
         seq = SequenceMatcher(None, " ".join(sorted(q_words)), " ".join(sorted(t_words))).ratio()
         score = max(ratio, seq)
-        if score >= 0.28 or len(common) >= 2:
+                if score >= 0.45 or len(common) >= 3:
+            scored.append({"score": score, "article": art})
             scored.append({"score": score, "article": art})
     scored.sort(key=lambda item: item["score"], reverse=True)
     return scored
@@ -214,8 +216,8 @@ if st.button("🔍 Analyze & Verify Live"):
             found_clickbaits = [w for w in CLICKBAIT_WORDS if w in query_text.lower()]
             clickbait_hits = len(found_clickbaits)
 
-            if clickbait_hits > 0 and not matched_articles and not domain_verified:
-                real_prob = max(8.5, 20.0 - (clickbait_hits * 4.0))
+                        if clickbait_hits > 0 and not domain_verified:
+                real_prob = max(8.5, 19.0 - (clickbait_hits * 4.0))
             elif domain_verified or best_score >= 0.45 or len(matched_articles) >= 2:
                 real_prob = min(96.4, 82.0 + (len(matched_articles) * 3.0) + (best_score * 10.0))
             elif len(matched_articles) == 1 or best_score >= 0.28:
