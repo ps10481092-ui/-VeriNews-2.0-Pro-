@@ -215,7 +215,7 @@ if st.button("🔍 Analyze & Verify Live"):
             found_clickbaits = [w for w in CLICKBAIT_WORDS if w in query_text.lower()]
             clickbait_hits = len(found_clickbaits)
 
-             if clickbait_hits > 0 and not domain_verified:
+            if clickbait_hits > 0 and not domain_verified:
                 real_prob = max(8.5, 19.0 - (clickbait_hits * 4.0))
             elif domain_verified or best_score >= 0.45 or len(matched_articles) >= 2:
                 real_prob = min(96.4, 82.0 + (len(matched_articles) * 3.0) + (best_score * 10.0))
